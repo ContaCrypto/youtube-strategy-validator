@@ -1,0 +1,142 @@
+{
+  "strategy_name": "Trend Line Break / Break-and-Retest / Bounce Setup",
+  "market": "Claimed to work on any instrument, any timeframe, and any market; examples mentioned include Apple, platinum, and crude oil.",
+  "timeframe": "Top-down analysis starts on the monthly timeframe and moves lower: weekly, daily, 4-hour, 1-hour, 30-minute, 5-minute, until the trader's designated trading timeframe. The actual execution timeframe is not explicitly fixed.",
+  "indicators": [
+    {
+      "category": "charting_tool",
+      "rule": "Use TradingView's ray tool as a trend line tool.",
+      "clarity": "clear"
+    },
+    {
+      "category": "price_action",
+      "rule": "No indicators are used for entries or exits in the trend line break setup; entries and exits are based on trend lines and price action.",
+      "clarity": "clear"
+    },
+    {
+      "category": "optional_confirmation",
+      "rule": "Horizontal support/resistance/key levels may be added as extra confirmation, but they are not the core of the strategy.",
+      "clarity": "partially clear"
+    }
+  ],
+  "entry_rules_long": [
+    {
+      "category": "trend_line_break",
+      "rule": "After drawing an upward and downward trend line, wait for price to break one of the lines; the broken line becomes the action line and triggers a trade entry.",
+      "clarity": "direction unclear: the transcript does not explicitly map this to long versus short"
+    },
+    {
+      "category": "break_and_retest",
+      "rule": "A break-and-retest setup occurs when price breaks the action line and then touches that same line from the other side.",
+      "clarity": "setup definition clear; exact long entry timing unclear"
+    }
+  ],
+  "entry_rules_short": [
+    {
+      "category": "trend_line_break",
+      "rule": "After drawing an upward and downward trend line, wait for price to break one of the lines; the broken line becomes the action line and triggers a trade entry.",
+      "clarity": "direction unclear: the transcript does not explicitly map this to long versus short"
+    },
+    {
+      "category": "bounce_setup",
+      "rule": "A bounce setup occurs when price respects or bounces off a trend line instead of breaking it; each touch/bounce is described as an entry indication.",
+      "clarity": "partially clear: direction, confirmation criteria, and exact entry trigger are not specified"
+    }
+  ],
+  "exit_rules": [
+    {
+      "category": "safety_line_exit",
+      "rule": "Stay in the trade until price breaks the opposite line, called the safety line.",
+      "clarity": "partially clear: break definition is not specified"
+    },
+    {
+      "category": "round_trip_exit",
+      "rule": "Exit the trade when the safety line is crossed.",
+      "clarity": "partially clear: crossed by wick or close is not specified"
+    },
+    {
+      "category": "bounce_setup_exit",
+      "rule": "For the bounce setup, the action line and safety line are the same line; exit when price finally breaks that line.",
+      "clarity": "partially clear: break definition is not specified"
+    }
+  ],
+  "stop_loss": {
+    "category": "stop_loss",
+    "rule": "Place the stop loss on the other side of the safety line. | Do not place the stop loss directly on the safety line because price is expected to respect the safety line. | The safety line defines the risk and is used to determine where the stop loss belongs.",
+    "clarity": "clear"
+  },
+  "take_profit": {
+    "category": "take_profit",
+    "rule": "Profit is taken by staying in the trade until price breaks the safety line. | No fixed profit target, reward-to-risk target, trailing target, or partial profit-taking rule is explicitly provided.",
+    "clarity": "partially clear"
+  },
+  "risk_management": {
+    "category": "risk_management",
+    "rule": "New traders should risk 1% to 2% of trading capital per trade. | Using 2% risk, a $3,000 account risks $60 per trade; a $5,000 account risks $100 per trade. | A low-risk setup is one where the distance from current price or entry to the safety line is small and clearly defined while potential gain could be larger. | A high-risk setup is one where the distance from current price to the safety line is far away. | Track every trade, including setup type, reasoning, outcome, date/time, instrument, entry price, exit price, duration, and profit/loss where possible.",
+    "clarity": "clear"
+  },
+  "position_sizing": {
+    "category": "position_sizing",
+    "rule": "Position size should be based on risking 1% to 2% of capital per trade for new traders. | Do not increase position size until journaled data shows consistent and repeatable profitability over time. | Potential position-size increases mentioned include moving from one micro contract to two micro contracts, from ten micro contracts to one mini contract, or from one share to two shares.",
+    "clarity": "partially clear: contract/share quantity calculation using stop distance is not provided"
+  },
+  "repainting_risk": [
+    {
+      "category": "manual_trendlines",
+      "rule": "The system depends on manually drawn trend lines, which can change depending on selected anchor points and the trader's interpretation.",
+      "clarity": "clear risk"
+    },
+    {
+      "category": "break_confirmation",
+      "rule": "The transcript does not specify whether a break requires an intrabar wick, candle body, candle close, percentage penetration, or time confirmation.",
+      "clarity": "clear risk"
+    },
+    {
+      "category": "top_down_redrawing",
+      "rule": "Trend lines are drawn through top-down analysis and connected across timeframes, but exact algorithmic rules for selecting pivots and touch points are not fully specified.",
+      "clarity": "clear risk"
+    }
+  ],
+  "missing_information": [
+    "No explicit mapping of trend line breaks to long versus short entries.",
+    "No exact execution timeframe is specified.",
+    "No definition of a valid break: wick, candle body, candle close, minimum tick/point/percent penetration, or confirmation candle.",
+    "No exact entry order type: market, limit, stop, or close-of-candle entry.",
+    "No exact rule for break-and-retest entry timing after retest.",
+    "No exact rule for bounce entry confirmation.",
+    "No minimum number of touch points required for a valid trend line, although two-touch and three-touch setups are described.",
+    "No precise pivot selection algorithm for point A and point B.",
+    "No maximum or minimum distance between touch points.",
+    "No rule for overlapping or conflicting trend lines.",
+    "No exact stop-loss buffer beyond 'other side of the safety line.'",
+    "No fixed take-profit method other than exiting when the safety line is broken.",
+    "No reward-to-risk requirement.",
+    "No handling of gaps, slippage, spreads, commissions, or overnight/session boundaries.",
+    "No trade invalidation rule before entry.",
+    "No limit on number of trades per day, though excessive trading is discouraged.",
+    "No statistical evidence, backtest, win rate, drawdown, or expectancy is provided.",
+    "No objective threshold for low-risk versus high-risk setups.",
+    "No exact rule for using horizontal support/resistance as confirmation."
+  ],
+  "subjective_terms": [
+    "low-risk setup",
+    "high-risk setup",
+    "as many touch points as possible",
+    "price action is crazier",
+    "beautifully",
+    "holy grail",
+    "absolute favorite",
+    "blow your mind",
+    "works on any instrument, any timeframe, any market",
+    "potential gain could be significantly larger",
+    "based on intuition",
+    "based on the weight of a setup",
+    "clearly defined",
+    "far away",
+    "small",
+    "repeatable profitability over time"
+  ],
+  "coding_readiness_score": 2,
+  "scam_or_cherry_pick_warning": "The transcript contains promotional language such as 'holy grail,' 'blow your mind,' and claims that the strategy works on any market and timeframe. It provides visual examples but no verified backtest, forward-test statistics, expectancy, win rate, drawdown, or sample size. Manual trend line drawing and undefined break criteria make the system vulnerable to cherry-picking and hindsight bias.",
+  "summary": "The strategy is a discretionary price-action system using manually drawn upward and downward trend lines from top-down analysis. Price breaking a trend line creates an action line and triggers a trade; the opposite line becomes the safety line and governs risk, stop placement, and exit. Variants include two-touch trend line breaks, three-touch trend line breaks, break-and-retest setups, and bounce setups. The clearest risk rule is to risk 1% to 2% of capital per trade and place the stop loss on the other side of the safety line. However, the transcript lacks objective coding rules for trade direction, break confirmation, entry timing, pivot selection, profit targets, and position-size calculation."
+}

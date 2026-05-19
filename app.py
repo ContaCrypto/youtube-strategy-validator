@@ -725,6 +725,91 @@ def save_report(video_id: str, result: StrategyExtraction) -> str:
     return filename
 
 
+def generate_markdown_report(video_id: str, result: StrategyExtraction) -> str:
+
+    os.makedirs("reports", exist_ok=True)
+
+    filename = f"reports/{video_id}_report.md"
+
+    def bullet_list(items):
+        if not items:
+            return "- None"
+
+        formatted = []
+
+        for item in items:
+            if isinstance(item, StrategyRule):
+                formatted.append(f"- {item.rule}")
+            else:
+                formatted.append(f"- {item}")
+
+        return "\n".join(formatted)
+
+    markdown = f"""# Strategy Analysis Report
+
+## Strategy Information
+
+- Name: {result.strategy_name or "Unknown"}
+- Type: {result.strategy_type or "Unknown"}
+- Market: {result.market or "Unknown"}
+- Timeframe: {result.timeframe or "Unknown"}
+
+---
+
+## Scores
+
+### Coding Readiness
+{result.coding_readiness_score}/100
+
+### Confidence Score
+{result.confidence_score}/100
+
+### Pine Script Ready
+{result.pine_script_ready}
+
+---
+
+## Indicators
+
+{bullet_list(result.indicators)}
+
+---
+
+## Missing Information
+
+{bullet_list(result.missing_information)}
+
+---
+
+## Failure Reasons
+
+{bullet_list(result.failure_reasons)}
+
+---
+
+## Subjective Terms
+
+{bullet_list(result.subjective_terms)}
+
+---
+
+## Warning
+
+{result.scam_or_cherry_pick_warning}
+
+---
+
+## Summary
+
+{result.summary}
+"""
+
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(markdown)
+
+    return filename
+
+
 def validate_strategy_core(
     youtube_url: str, transcript_text: Optional[str] = None, save: bool = False
 ) -> StrategyExtraction:
@@ -957,6 +1042,9 @@ def main() -> int:
     parser.add_argument("--export-csv", action="store_true", help="Export leaderboard")
     parser.add_argument("--batch", help="Batch file with URLs")
 
+    parser.add_argument(
+        "--markdown", action="store_true", help="Export analysis as Markdown report"
+    )
     args = parser.parse_args()
 
     if args.test:
@@ -1000,6 +1088,12 @@ def main() -> int:
             args.transcript,
             save=args.save,
         )
+
+        video_id = extract_video_id(args.url)
+
+        if args.markdown:
+            markdown_file = generate_markdown_report(video_id, result)
+            print(f"\nMarkdown report saved to: {markdown_file}")
 
         if args.summary:
 

@@ -52,10 +52,16 @@ from typing import Any, Dict, List, Optional
 
 # Optional dependencies. The app must not crash if these are missing.
 try:
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, HTTPException, Request, Form
+    from fastapi.responses import HTMLResponse
+    from fastapi.templating import Jinja2Templates
 except ModuleNotFoundError:  # pragma: no cover
     FastAPI = None
     HTTPException = None
+    Request = None
+    Form = None
+    HTMLResponse = None
+    Jinja2Templates = None
 
 try:
     from pydantic import BaseModel, Field
@@ -828,6 +834,7 @@ def validate_strategy_core(
 # Optional FastAPI layer. This is only created when FastAPI and Pydantic exist.
 if FastAPI is not None and BaseModel is not None:
     app = FastAPI(title="AI YouTube Strategy Validator")
+    templates = Jinja2Templates(directory="templates")
 
     class ValidateRequest(BaseModel):
         youtube_url: str
@@ -847,14 +854,31 @@ if FastAPI is not None and BaseModel is not None:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc))
 
-    @app.get("/")
-    def root():
-        return {
-            "app": "AI YouTube Strategy Validator",
-            "status": "running",
-            "endpoint": "POST /validate",
-            "fastapi_enabled": True,
-        }
+    @app.get("/", response_class=HTMLResponse)
+    def home(request: Request):
+        return templates.TemplateResponse(request=request, name="index.html")
+
+    @app.post("/", response_class=HTMLResponse)
+    def home_analyze(request: Request, youtube_url: str = Form(...)):
+        try:
+            result = validate_strategy_core(youtube_url)
+            return templates.TemplateResponse(
+                request=request,
+                name="index.html",
+                context={"result": result.to_dict(), "url": youtube_url},
+            )
+        except (ValueError, StrategyValidatorError) as exc:
+            return templates.TemplateResponse(
+                request=request,
+                name="index.html",
+                context={"error": str(exc), "url": youtube_url},
+            )
+        except Exception as exc:
+            return templates.TemplateResponse(
+                request=request,
+                name="index.html",
+                context={"error": f"Unexpected error: {exc}", "url": youtube_url},
+            )
 
 else:
     app = None

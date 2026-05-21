@@ -6,8 +6,10 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.136.1",
     "gunicorn>=26.0.0",
+    "jinja2>=3.1.6",
     "openai>=2.37.0",
     "pydantic>=2.13.4",
+    "python-multipart>=0.0.29",
     "uvicorn>=0.47.0",
     "youtube-transcript-api>=1.2.4",
 ]

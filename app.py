@@ -51,12 +51,17 @@ from datetime import datetime
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
+
 try:
     import db as _db
+
     _db.init_db()
 except Exception as _db_init_err:
     logging.warning("DB init failed: %s", _db_init_err)
     _db = None
+
+
+from reports import print_score_bar
 
 # Optional dependencies. The app must not crash if these are missing.
 try:
@@ -160,10 +165,14 @@ class StrategyExtraction:
     confidence_score: int = 0
 
     session_filter: StrategyRule = field(
-        default_factory=lambda: StrategyRule("session_filter", "Not specified", "missing")
+        default_factory=lambda: StrategyRule(
+            "session_filter", "Not specified", "missing"
+        )
     )
     backtest_evidence: StrategyRule = field(
-        default_factory=lambda: StrategyRule("backtest_evidence", "None mentioned", "missing")
+        default_factory=lambda: StrategyRule(
+            "backtest_evidence", "None mentioned", "missing"
+        )
     )
     promotional_claims: List[str] = field(default_factory=list)
 
@@ -330,24 +339,66 @@ def detect_strategy_type(text: str) -> Optional[str]:
 
 
 _SUBJECTIVE_TERMS: set = {
-    "confirmation", "momentum", "market structure", "strong candle", "weak candle",
-    "clean setup", "good entry", "wait for reaction", "looks bullish", "looks bearish",
-    "feels like", "smart money", "liquidity grab", "order flow", "fair value gap",
-    "imbalance", "respecting level", "clean break", "institutional", "killzone",
-    "high probability", "high quality", "price action confirmation",
+    "confirmation",
+    "momentum",
+    "market structure",
+    "strong candle",
+    "weak candle",
+    "clean setup",
+    "good entry",
+    "wait for reaction",
+    "looks bullish",
+    "looks bearish",
+    "feels like",
+    "smart money",
+    "liquidity grab",
+    "order flow",
+    "fair value gap",
+    "imbalance",
+    "respecting level",
+    "clean break",
+    "institutional",
+    "killzone",
+    "high probability",
+    "high quality",
+    "price action confirmation",
 }
 
 _PROMOTIONAL_TERMS: set = {
-    "holy grail", "works on any market", "never loses", "never lose", "always works",
-    "guaranteed profit", "risk free", "risk-free", "secret strategy",
-    "life changing", "quit your job", "financial freedom", "passive income",
-    "become rich", "easy money", "make money fast", "no risk", "can't lose",
-    "perfect strategy", "100% win rate", "always profitable",
+    "holy grail",
+    "works on any market",
+    "never loses",
+    "never lose",
+    "always works",
+    "guaranteed profit",
+    "risk free",
+    "risk-free",
+    "secret strategy",
+    "life changing",
+    "quit your job",
+    "financial freedom",
+    "passive income",
+    "become rich",
+    "easy money",
+    "make money fast",
+    "no risk",
+    "can't lose",
+    "perfect strategy",
+    "100% win rate",
+    "always profitable",
 }
 
 _EXACT_SIGNALS: list = [
-    "cross", "above", "below", "greater than", "less than",
-    "%", ">=", "<=", "pips", "points",
+    "cross",
+    "above",
+    "below",
+    "greater than",
+    "less than",
+    "%",
+    ">=",
+    "<=",
+    "pips",
+    "points",
 ]
 
 
@@ -362,7 +413,10 @@ def detect_session_filter(text: str) -> Optional[str]:
     lowered = text.lower()
     if any(w in lowered for w in ["london session", "london open", "london killzone"]):
         return "London session"
-    if any(w in lowered for w in ["new york session", "ny session", "new york open", "ny open"]):
+    if any(
+        w in lowered
+        for w in ["new york session", "ny session", "new york open", "ny open"]
+    ):
         return "New York session"
     if any(w in lowered for w in ["asian session", "tokyo session", "asia session"]):
         return "Asian session"
@@ -427,10 +481,31 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
         if re.search(r"\b(short|sell short|enter short|go short)\b", sl):
             entry_rules_short.append(StrategyRule("short_entry", s, clarity))
 
-        if any(w in sl for w in ["exit", "close", "sell when", "take profit", "stop loss", "stop out"]):
+        if any(
+            w in sl
+            for w in [
+                "exit",
+                "close",
+                "sell when",
+                "take profit",
+                "stop loss",
+                "stop out",
+            ]
+        ):
             e_clarity = clarity
             if clarity != "subjective" and any(
-                w in sl for w in ["cross", "above", "below", "%", "atr", "risk reward", "r:r", "1:", "2:"]
+                w in sl
+                for w in [
+                    "cross",
+                    "above",
+                    "below",
+                    "%",
+                    "atr",
+                    "risk reward",
+                    "r:r",
+                    "1:",
+                    "2:",
+                ]
             ):
                 e_clarity = "exact"
             exit_rules.append(StrategyRule("exit", s, e_clarity))
@@ -443,7 +518,8 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
     if stop_match:
         t = stop_match.group(0).strip()
         stop_loss = StrategyRule(
-            "stop_loss", t,
+            "stop_loss",
+            t,
             "exact" if re.search(r"\d|atr|%|pips?|points?", t.lower()) else "vague",
         )
 
@@ -451,25 +527,31 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
     take_profit = StrategyRule("take_profit", "Missing", "missing")
     tp_match = re.search(
         r"(take[\s-]?profits?|profit target|\btp\b|\btarget\b)[^.!?]{0,100}",
-        text, flags=re.IGNORECASE,
+        text,
+        flags=re.IGNORECASE,
     )
     if tp_match:
         t = tp_match.group(0).strip()
         take_profit = StrategyRule(
-            "take_profit", t,
-            "exact" if re.search(r"\d|%|risk[\s-]reward|r:r|1r|2r|3r|pips?", t.lower()) else "vague",
+            "take_profit",
+            t,
+            "exact"
+            if re.search(r"\d|%|risk[\s-]reward|r:r|1r|2r|3r|pips?", t.lower())
+            else "vague",
         )
 
     # ── Risk management ────────────────────────────────────────────────────────
     risk_management = StrategyRule("risk_management", "Missing", "missing")
     risk_match = re.search(
         r"(risk[\s-]?management|risk per trade|max[\s-]?risk|risk no more|never risk|\brisk\s+\d+%)[^.!?]{0,120}",
-        text, flags=re.IGNORECASE,
+        text,
+        flags=re.IGNORECASE,
     )
     if risk_match:
         t = risk_match.group(0).strip()
         risk_management = StrategyRule(
-            "risk_management", t,
+            "risk_management",
+            t,
             "exact" if re.search(r"\d|%", t) else "vague",
         )
 
@@ -477,12 +559,14 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
     position_sizing = StrategyRule("position_sizing", "Missing", "missing")
     size_match = re.search(
         r"(position[\s-]?siz|lot[\s-]?siz|contract[\s-]?siz|trade[\s-]?siz|risk per)[^.!?]{0,120}",
-        text, flags=re.IGNORECASE,
+        text,
+        flags=re.IGNORECASE,
     )
     if size_match:
         t = size_match.group(0).strip()
         position_sizing = StrategyRule(
-            "position_sizing", t,
+            "position_sizing",
+            t,
             "exact" if re.search(r"\d|%", t) else "vague",
         )
 
@@ -506,7 +590,10 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
     repainting_risk = "Unknown"
     if re.search(r"\brepaint", lowered):
         repainting_risk = "Mentioned in transcript. Needs manual review."
-    elif any(w in lowered for w in ["pivot", "zigzag", "fractal", "future candle", "lookahead"]):
+    elif any(
+        w in lowered
+        for w in ["pivot", "zigzag", "fractal", "future candle", "lookahead"]
+    ):
         repainting_risk = "Possible repainting risk due to indicator type."
 
     # ── Missing information ────────────────────────────────────────────────────
@@ -575,9 +662,13 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
     if position_sizing.clarity != "exact":
         failure_reasons.append("No exact position sizing")
     if subjective_terms:
-        failure_reasons.append(f"Contains subjective language: {', '.join(subjective_terms[:3])}")
+        failure_reasons.append(
+            f"Contains subjective language: {', '.join(subjective_terms[:3])}"
+        )
     if promotional_claims:
-        failure_reasons.append(f"Contains promotional claims: {', '.join(promotional_claims[:2])}")
+        failure_reasons.append(
+            f"Contains promotional claims: {', '.join(promotional_claims[:2])}"
+        )
 
     # ── Warning ────────────────────────────────────────────────────────────────
     if promotional_claims or score < 30:
@@ -664,8 +755,20 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
 
     auto_feas = max(0, min(100, int((entry_q + exit_q + risk_q) / 3) - hype_risk // 3))
 
-    _clarity_val = {"exact": 100, "vague": 40, "subjective": 10, "missing": 0, "unknown": 20}
-    formal_base = sum(_clarity_val.get(f.clarity, 0) for f in [stop_loss, take_profit, risk_management, position_sizing]) // 4
+    _clarity_val = {
+        "exact": 100,
+        "vague": 40,
+        "subjective": 10,
+        "missing": 0,
+        "unknown": 20,
+    }
+    formal_base = (
+        sum(
+            _clarity_val.get(f.clarity, 0)
+            for f in [stop_loss, take_profit, risk_management, position_sizing]
+        )
+        // 4
+    )
     formal_base = (formal_base + entry_q) // 2 if all_entries else formal_base
     formalization = max(0, min(100, formal_base - len(subjective_terms) * 3))
 
@@ -857,7 +960,9 @@ SCORING GUIDANCE:
         risk_management=rule_from_any(data.get("risk_management"), "risk_management"),
         position_sizing=rule_from_any(data.get("position_sizing"), "position_sizing"),
         session_filter=rule_from_any(data.get("session_filter"), "session_filter"),
-        backtest_evidence=rule_from_any(data.get("backtest_evidence"), "backtest_evidence"),
+        backtest_evidence=rule_from_any(
+            data.get("backtest_evidence"), "backtest_evidence"
+        ),
         repainting_risk=data.get("repainting_risk", "Unknown"),
         missing_information=data.get("missing_information", []),
         subjective_terms=data.get("subjective_terms", []),
@@ -903,7 +1008,6 @@ def save_report(video_id: str, result: StrategyExtraction) -> str:
 
 
 def generate_markdown_report(video_id: str, result: StrategyExtraction) -> str:
-
     os.makedirs("reports", exist_ok=True)
 
     filename = f"reports/{video_id}_report.md"
@@ -1067,9 +1171,7 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
                 f"It contains {subj_count} subjective term(s) that cannot be translated into code."
             )
         if missing_count:
-            why_parts.append(
-                f"{missing_count} key component(s) are missing entirely."
-            )
+            why_parts.append(f"{missing_count} key component(s) are missing entirely.")
     elif verdict == "Semi-Codable":
         why_parts.append(
             f"The strategy scores {cr}/100 on coding readiness and {cf}/100 on confidence. "
@@ -1080,9 +1182,7 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
                 f"{subj_count} subjective term(s) need to be replaced with exact conditions."
             )
         if missing_count:
-            why_parts.append(
-                f"{missing_count} component(s) are still undefined."
-            )
+            why_parts.append(f"{missing_count} component(s) are still undefined.")
         if pine_ready:
             why_parts.append("A partial Pine Script implementation is feasible.")
     else:
@@ -1099,7 +1199,11 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
     # ── Next steps ───────────────────────────────────────────────────────────
     steps: List[str] = []
 
-    missing_texts = [_rule_text(m).lower() for m in raw_missing] if isinstance(raw_missing, list) else []
+    missing_texts = (
+        [_rule_text(m).lower() for m in raw_missing]
+        if isinstance(raw_missing, list)
+        else []
+    )
 
     if any("stop loss" in t for t in missing_texts):
         steps.append("Define an exact stop loss (e.g. 1.5% below entry or 1× ATR)")
@@ -1118,15 +1222,21 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
     if any("exit" in t for t in missing_texts):
         steps.append("Define clear exit conditions")
     if subj_count:
-        steps.append(f"Replace {subj_count} subjective term(s) with measurable conditions")
+        steps.append(
+            f"Replace {subj_count} subjective term(s) with measurable conditions"
+        )
     if verdict == "Likely Scam":
         steps.append("Seek a strategy with independently verifiable backtest results")
     if not steps:
         if verdict in ("Fully Codable", "Semi-Codable"):
-            steps.append("Implement and forward-test the strategy in a paper trading account")
+            steps.append(
+                "Implement and forward-test the strategy in a paper trading account"
+            )
             steps.append("Write unit tests for each entry and exit condition")
         else:
-            steps.append("Find a more rule-based strategy before attempting to automate")
+            steps.append(
+                "Find a more rule-based strategy before attempting to automate"
+            )
 
     return {
         "verdict": verdict,
@@ -1176,14 +1286,21 @@ if FastAPI is not None and BaseModel is not None:
             if _db is not None:
                 try:
                     video_id = extract_video_id(youtube_url)
-                    saved_id = _db.save_analysis(youtube_url, video_id, result_dict, verdict)
+                    saved_id = _db.save_analysis(
+                        youtube_url, video_id, result_dict, verdict
+                    )
                 except Exception:
                     logging.exception("Failed to save analysis to DB")
 
             return templates.TemplateResponse(
                 request=request,
                 name="index.html",
-                context={"result": result_dict, "verdict": verdict, "url": youtube_url, "saved_id": saved_id},
+                context={
+                    "result": result_dict,
+                    "verdict": verdict,
+                    "url": youtube_url,
+                    "saved_id": saved_id,
+                },
             )
         except (ValueError, StrategyValidatorError) as exc:
             logging.exception("Strategy validation error")
@@ -1403,13 +1520,6 @@ def print_leaderboard() -> None:
         print()
 
 
-def print_score_bar(score: int) -> None:
-    filled = int(score / 10)
-    empty = 10 - filled
-    bar = "█" * filled + "░" * empty
-    print(f"[{bar}] {score}/100")
-
-
 def export_leaderboard_csv(output_file: str = "leaderboard.csv") -> str:
     leaderboard = load_leaderboard()
 
@@ -1534,7 +1644,6 @@ def main() -> int:
             print(f"\nMarkdown report saved to: {markdown_file}")
 
         if args.summary:
-
             print(f"Strategy: {result.strategy_name or 'Unknown'}")
             print(f"Strategy Type: {result.strategy_type or 'Unknown'}")
             print(f"Market: {result.market or 'Unknown'}")

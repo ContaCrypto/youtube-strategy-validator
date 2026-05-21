@@ -49,7 +49,7 @@ import unittest
 from datetime import datetime
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
-
+from reports import print_score_bar
 # Optional dependencies. The app must not crash if these are missing.
 try:
     from fastapi import FastAPI, HTTPException
@@ -965,11 +965,7 @@ def print_leaderboard() -> None:
         print()
 
 
-def print_score_bar(score: int) -> None:
-    filled = int(score / 10)
-    empty = 10 - filled
-    bar = "█" * filled + "░" * empty
-    print(f"[{bar}] {score}/100")
+
 
 
 def export_leaderboard_csv(output_file: str = "leaderboard.csv") -> str:

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI YouTube Strategy Validator</title>
+<title>Analysis #{{ rec.id }} — AI YouTube Strategy Validator</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
@@ -14,67 +14,44 @@
   nav a:hover { color: #e2e8f0; }
   nav a.active { color: #a5b4fc; border-bottom-color: #6366f1; }
 
-  h1 { font-size: 1.8rem; font-weight: 700; color: #f8fafc; margin-bottom: 6px; }
-  .subtitle { color: #94a3b8; font-size: 0.95rem; margin-bottom: 28px; }
+  .page-header { margin-bottom: 24px; }
+  .page-header h1 { font-size: 1.4rem; font-weight: 700; color: #f8fafc; }
+  .page-header p  { color: #64748b; font-size: 0.8rem; margin-top: 4px; word-break: break-all; }
 
-  .disclaimer { font-size: 0.8rem; color: #64748b; background: #1e2433; border: 1px solid #2d3748; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; }
-
-  .card { background: #1e2433; border: 1px solid #2d3748; border-radius: 12px; padding: 28px; margin-bottom: 20px; }
-  .card-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #64748b; margin-bottom: 16px; }
-
-  label { display: block; font-size: 0.875rem; font-weight: 600; color: #94a3b8; margin-bottom: 8px; }
-  input[type="text"] { width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid #2d3748; background: #0f1117; color: #e2e8f0; font-size: 1rem; outline: none; transition: border-color .2s; }
-  input[type="text"]:focus { border-color: #6366f1; }
-  button { margin-top: 16px; padding: 12px 28px; background: #6366f1; color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background .2s; }
-  button:hover { background: #4f46e5; }
-  button:disabled { background: #374151; cursor: not-allowed; }
-  .loading { display: none; color: #94a3b8; font-size: 0.875rem; margin-top: 10px; }
-
-  .error-box { background: #2d1b1b; border: 1px solid #7f1d1d; border-radius: 8px; padding: 16px; color: #fca5a5; margin-bottom: 20px; }
-
-  .saved-notice { font-size: 0.8rem; color: #4ade80; margin-top: 10px; }
-  .saved-notice a { color: #6366f1; text-decoration: none; font-weight: 600; }
-  .saved-notice a:hover { text-decoration: underline; }
+  .card { background: #1e2433; border: 1px solid #2d3748; border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; }
+  .card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #64748b; margin-bottom: 16px; }
 
   /* Verdict */
-  .verdict-card { border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; border: 1px solid; }
+  .verdict-card { border-radius: 12px; padding: 22px 26px; margin-bottom: 20px; border: 1px solid; }
   .verdict-card.red    { background: #1f0a0a; border-color: #7f1d1d; }
   .verdict-card.orange { background: #1c1009; border-color: #78350f; }
   .verdict-card.yellow { background: #1a1608; border-color: #713f12; }
   .verdict-card.green  { background: #051a0e; border-color: #14532d; }
-  .verdict-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 6px; }
+  .verdict-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+  .verdict-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 4px; }
   .verdict-card.red    .verdict-label { color: #f87171; }
   .verdict-card.orange .verdict-label { color: #fb923c; }
   .verdict-card.yellow .verdict-label { color: #fbbf24; }
   .verdict-card.green  .verdict-label { color: #4ade80; }
-  .verdict-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 0; }
+  .verdict-title { font-size: 1.5rem; font-weight: 800; }
   .verdict-card.red    .verdict-title { color: #fca5a5; }
   .verdict-card.orange .verdict-title { color: #fdba74; }
   .verdict-card.yellow .verdict-title { color: #fde68a; }
   .verdict-card.green  .verdict-title { color: #86efac; }
-  .verdict-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
   .difficulty-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 99px; padding: 6px 14px; font-size: 0.8rem; font-weight: 700; border: 1px solid; }
   .difficulty-pill.red    { background: #2d0a0a; border-color: #991b1b; color: #fca5a5; }
   .difficulty-pill.orange { background: #2a1500; border-color: #92400e; color: #fdba74; }
   .difficulty-pill.yellow { background: #231c00; border-color: #854d0e; color: #fde68a; }
   .difficulty-pill.green  { background: #052010; border-color: #166534; color: #86efac; }
 
-  /* Why */
-  .why-box { background: #0f1117; border: 1px solid #2d3748; border-radius: 8px; padding: 16px 18px; color: #cbd5e1; font-size: 0.9rem; line-height: 1.65; margin-top: 14px; }
-
-  /* Steps */
-  .steps-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-  .steps-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #cbd5e1; line-height: 1.5; }
-  .steps-list li::before { content: "→"; color: #6366f1; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
-
   /* Meta */
-  .meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
-  .meta-item { background: #0f1117; border-radius: 8px; padding: 14px 16px; border: 1px solid #2d3748; }
+  .meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .meta-item { background: #0f1117; border-radius: 8px; padding: 13px 15px; border: 1px solid #2d3748; }
   .meta-label { font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
-  .meta-value { font-size: 0.95rem; font-weight: 600; color: #e2e8f0; }
+  .meta-value { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; }
 
   /* Scores */
-  .score-block { margin-bottom: 14px; }
+  .score-block { margin-bottom: 12px; }
   .score-row { font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: flex; justify-content: space-between; }
   .bar-track { background: #0f1117; border-radius: 99px; height: 9px; overflow: hidden; border: 1px solid #2d3748; }
   .bar-fill { height: 100%; border-radius: 99px; }
@@ -93,44 +70,21 @@
   .tag-miss { border-color: #1e3a5f; color: #60a5fa; background: #0a1628; }
   .tag-fail { border-color: #4c1d95; color: #c4b5fd; background: #130d2a; }
   .warning-box { background: #1c1009; border: 1px solid #78350f; border-radius: 8px; padding: 13px 16px; color: #fbbf24; font-size: 0.875rem; line-height: 1.55; margin-top: 4px; }
-  hr.divider { border: none; border-top: 1px solid #2d3748; margin: 20px 0; }
+  hr.divider { border: none; border-top: 1px solid #2d3748; margin: 18px 0; }
 </style>
 </head>
 <body>
 <div class="container">
 
   <nav>
-    <a href="/" class="active">Home</a>
+    <a href="/">Home</a>
     <a href="/history">History</a>
   </nav>
 
-  <h1>AI YouTube Strategy Validator</h1>
-  <p class="subtitle">Paste a YouTube URL to analyze whether its trading strategy is code-ready.</p>
-
-  <div class="disclaimer">
-    This tool does not provide financial advice. It evaluates strategy clarity, testability, and credibility.
+  <div class="page-header">
+    <h1>{{ rec.strategy_name or 'Unnamed Strategy' }}</h1>
+    <p>{{ rec.youtube_url }} &nbsp;·&nbsp; {{ rec.created_at[:10] }}</p>
   </div>
-
-  <div class="card">
-    <form method="post" action="/"
-          onsubmit="this.querySelector('button').disabled=true; document.getElementById('loading').style.display='block';">
-      <label for="youtube_url">YouTube URL</label>
-      <input type="text" id="youtube_url" name="youtube_url"
-             placeholder="https://www.youtube.com/watch?v=..."
-             value="{{ url or '' }}" required autofocus>
-      <button type="submit">Analyze Strategy</button>
-      <p id="loading" class="loading">Fetching transcript and analyzing&hellip; this may take a few seconds.</p>
-      {% if saved_id %}
-      <p class="saved-notice">Saved. <a href="/analysis/{{ saved_id }}">View permalink</a> &nbsp;·&nbsp; <a href="/history">History</a></p>
-      {% endif %}
-    </form>
-  </div>
-
-  {% if error %}
-  <div class="error-box">{{ error }}</div>
-  {% endif %}
-
-  {% if result and verdict %}
 
   {# Verdict #}
   <div class="verdict-card {{ verdict.verdict_color }}">
@@ -146,43 +100,26 @@
     </div>
   </div>
 
-  {# Why #}
-  <div class="card">
-    <div class="card-title">Why this verdict?</div>
-    <div class="why-box">{{ verdict.why }}</div>
-  </div>
-
-  {# Next steps #}
-  <div class="card">
-    <div class="card-title">Recommended Next Steps</div>
-    <ul class="steps-list">
-      {% for step in verdict.next_steps %}
-      <li>{{ step }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-
   {# Strategy details #}
   <div class="card">
-    <div class="card-title">Strategy Details — {{ result.strategy_name or 'Unnamed Strategy' }}</div>
-
+    <div class="card-title">Strategy Details</div>
     <div class="meta-grid">
       <div class="meta-item">
         <div class="meta-label">Type</div>
-        <div class="meta-value">{{ result.strategy_type or '—' }}</div>
+        <div class="meta-value">{{ rec.strategy_type or '—' }}</div>
       </div>
       <div class="meta-item">
         <div class="meta-label">Market</div>
-        <div class="meta-value">{{ result.market or '—' }}</div>
+        <div class="meta-value">{{ rec.market or '—' }}</div>
       </div>
       <div class="meta-item">
         <div class="meta-label">Timeframe</div>
-        <div class="meta-value">{{ result.timeframe or '—' }}</div>
+        <div class="meta-value">{{ rec.timeframe or '—' }}</div>
       </div>
       <div class="meta-item">
         <div class="meta-label">Pine Script Ready</div>
         <div class="meta-value">
-          {% if result.pine_script_ready %}
+          {% if rec.pine_script_ready %}
             <span class="badge badge-green">Yes</span>
           {% else %}
             <span class="badge badge-red">No</span>
@@ -191,8 +128,8 @@
       </div>
     </div>
 
-    {% set cr = result.coding_readiness_score %}
-    {% set cf = result.confidence_score %}
+    {% set cr = rec.coding_readiness_score or 0 %}
+    {% set cf = rec.confidence_score or 0 %}
 
     <div class="score-block">
       <div class="score-row"><span>Coding Readiness</span><span>{{ cr }}/100</span></div>
@@ -210,44 +147,44 @@
       </div>
     </div>
 
-    {% set warning = result.scam_or_cherry_pick_warning %}
-    {% if warning %}
+    {% if rec.warning %}
       <hr class="divider">
       <div class="section-label">Warning</div>
-      <div class="warning-box">
-        {% if warning is mapping %}{{ warning.rule }}{% else %}{{ warning }}{% endif %}
-      </div>
+      <div class="warning-box">{{ rec.warning }}</div>
     {% endif %}
 
-    {% if result.missing_information %}
+    {% if rec.missing_information %}
       <div class="section-label">Missing Information</div>
       <div class="tag-list">
-        {% for item in result.missing_information %}
-          <span class="tag tag-miss">{% if item is mapping %}{{ item.rule }}{% else %}{{ item }}{% endif %}</span>
+        {% for item in rec.missing_information %}
+          <span class="tag tag-miss">{{ item }}</span>
         {% endfor %}
       </div>
     {% endif %}
 
-    {% if result.failure_reasons %}
+    {% if rec.failure_reasons %}
       <div class="section-label">Failure Reasons</div>
       <div class="tag-list">
-        {% for item in result.failure_reasons %}
-          <span class="tag tag-fail">{% if item is mapping %}{{ item.rule }}{% else %}{{ item }}{% endif %}</span>
+        {% for item in rec.failure_reasons %}
+          <span class="tag tag-fail">{{ item }}</span>
         {% endfor %}
       </div>
     {% endif %}
 
-    {% if result.subjective_terms %}
+    {% if rec.subjective_terms %}
       <div class="section-label">Subjective Terms</div>
       <div class="tag-list">
-        {% for term in result.subjective_terms %}
-          <span class="tag tag-warn">{% if term is mapping %}{{ term.rule }}{% else %}{{ term }}{% endif %}</span>
+        {% for term in rec.subjective_terms %}
+          <span class="tag tag-warn">{{ term }}</span>
         {% endfor %}
       </div>
     {% endif %}
 
   </div>
-  {% endif %}
+
+  <div style="text-align:center; margin-top:8px;">
+    <a href="/history" style="color:#64748b; font-size:0.85rem; text-decoration:none;">← Back to History</a>
+  </div>
 
 </div>
 </body>

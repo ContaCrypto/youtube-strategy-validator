@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import os
 import re
 import sys
@@ -49,6 +50,13 @@ import unittest
 from datetime import datetime
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
+
+try:
+    import db as _db
+    _db.init_db()
+except Exception as _db_init_err:
+    logging.warning("DB init failed: %s", _db_init_err)
+    _db = None
 
 # Optional dependencies. The app must not crash if these are missing.
 try:
@@ -1000,13 +1008,21 @@ if FastAPI is not None and BaseModel is not None:
             result = validate_strategy_core(youtube_url)
             result_dict = result.to_dict()
             verdict = compute_verdict(result_dict)
+
+            saved_id: Optional[int] = None
+            if _db is not None:
+                try:
+                    video_id = extract_video_id(youtube_url)
+                    saved_id = _db.save_analysis(youtube_url, video_id, result_dict, verdict)
+                except Exception:
+                    logging.exception("Failed to save analysis to DB")
+
             return templates.TemplateResponse(
                 request=request,
                 name="index.html",
-                context={"result": result_dict, "verdict": verdict, "url": youtube_url},
+                context={"result": result_dict, "verdict": verdict, "url": youtube_url, "saved_id": saved_id},
             )
         except (ValueError, StrategyValidatorError) as exc:
-            import logging
             logging.exception("Strategy validation error")
             return templates.TemplateResponse(
                 request=request,
@@ -1014,7 +1030,6 @@ if FastAPI is not None and BaseModel is not None:
                 context={"error": str(exc), "url": youtube_url},
             )
         except Exception as exc:
-            import logging
             logging.exception("Unexpected error in home_analyze")
             return templates.TemplateResponse(
                 request=request,
@@ -1022,8 +1037,46 @@ if FastAPI is not None and BaseModel is not None:
                 context={"error": f"Unexpected error: {exc}", "url": youtube_url},
             )
 
+    @app.get("/history", response_class=HTMLResponse)
+    def history(request: Request):
+        rows = _db.get_all_analyses() if _db is not None else []
+        return templates.TemplateResponse(
+            request=request,
+            name="history.html",
+            context={"rows": rows},
+        )
+
+    @app.get("/analysis/{analysis_id}", response_class=HTMLResponse)
+    def analysis_detail(request: Request, analysis_id: int):
+        if _db is None:
+            raise HTTPException(status_code=503, detail="Database unavailable")
+        rec = _db.get_analysis(analysis_id)
+        if rec is None:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        verdict = {
+            "verdict": rec["verdict"],
+            "verdict_color": _verdict_color(rec["verdict"]),
+            "difficulty": rec["automation_difficulty"],
+            "difficulty_color": _verdict_color(rec["verdict"]),
+        }
+        return templates.TemplateResponse(
+            request=request,
+            name="analysis.html",
+            context={"rec": rec, "verdict": verdict},
+        )
+
 else:
     app = None
+
+
+def _verdict_color(verdict: Optional[str]) -> str:
+    mapping = {
+        "Likely Scam": "red",
+        "Too Vague To Automate": "orange",
+        "Semi-Codable": "yellow",
+        "Fully Codable": "green",
+    }
+    return mapping.get(verdict or "", "orange")
 
 
 class TestYouTubeStrategyValidator(unittest.TestCase):

@@ -831,6 +831,142 @@ def validate_strategy_core(
     return result
 
 
+def _rule_text(item: Any) -> str:
+    """Extract plain text from a rule that may be a dict, StrategyRule, or string."""
+    if isinstance(item, dict):
+        return item.get("rule", str(item))
+    if hasattr(item, "rule"):
+        return item.rule
+    return str(item)
+
+
+def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Derive a verdict, automation difficulty, explanation and next steps from a result dict."""
+    cr = int(result.get("coding_readiness_score", 0))
+    cf = int(result.get("confidence_score", 0))
+
+    raw_subj = result.get("subjective_terms", [])
+    subj_count = len(raw_subj) if isinstance(raw_subj, list) else 0
+
+    raw_missing = result.get("missing_information", [])
+    missing_count = len(raw_missing) if isinstance(raw_missing, list) else 0
+
+    raw_failure = result.get("failure_reasons", [])
+    failure_count = len(raw_failure) if isinstance(raw_failure, list) else 0
+
+    pine_ready = bool(result.get("pine_script_ready", False))
+
+    # ── Verdict ──────────────────────────────────────────────────────────────
+    if cf < 20 or (cr < 25 and failure_count >= 6):
+        verdict = "Likely Scam"
+        verdict_color = "red"
+        difficulty = "Impossible"
+        difficulty_color = "red"
+    elif cf < 45 or cr < 35:
+        verdict = "Too Vague To Automate"
+        verdict_color = "orange"
+        difficulty = "Hard"
+        difficulty_color = "orange"
+    elif cf >= 70 and cr >= 70 and subj_count == 0 and missing_count <= 1:
+        verdict = "Fully Codable"
+        verdict_color = "green"
+        difficulty = "Easy"
+        difficulty_color = "green"
+    else:
+        verdict = "Semi-Codable"
+        verdict_color = "yellow"
+        difficulty = "Medium"
+        difficulty_color = "yellow"
+
+    # ── Why this verdict ─────────────────────────────────────────────────────
+    why_parts: List[str] = []
+
+    if verdict == "Likely Scam":
+        why_parts.append(
+            "The strategy scores extremely low on both coding readiness and confidence. "
+            "It provides almost no testable rules and is likely cherry-picked or fabricated."
+        )
+    elif verdict == "Too Vague To Automate":
+        why_parts.append(
+            f"With a coding readiness of {cr}/100 and confidence of {cf}/100, "
+            "this strategy lacks the specificity needed for reliable automation."
+        )
+        if subj_count:
+            why_parts.append(
+                f"It contains {subj_count} subjective term(s) that cannot be translated into code."
+            )
+        if missing_count:
+            why_parts.append(
+                f"{missing_count} key component(s) are missing entirely."
+            )
+    elif verdict == "Semi-Codable":
+        why_parts.append(
+            f"The strategy scores {cr}/100 on coding readiness and {cf}/100 on confidence. "
+            "Some rules are explicit enough to automate, but important gaps remain."
+        )
+        if subj_count:
+            why_parts.append(
+                f"{subj_count} subjective term(s) need to be replaced with exact conditions."
+            )
+        if missing_count:
+            why_parts.append(
+                f"{missing_count} component(s) are still undefined."
+            )
+        if pine_ready:
+            why_parts.append("A partial Pine Script implementation is feasible.")
+    else:
+        why_parts.append(
+            f"Coding readiness is {cr}/100 and confidence is {cf}/100. "
+            "The rules are specific, measurable, and largely free of subjective language. "
+            "This strategy can realistically be backtested and automated."
+        )
+        if pine_ready:
+            why_parts.append("It is flagged as Pine Script ready.")
+
+    why = " ".join(why_parts)
+
+    # ── Next steps ───────────────────────────────────────────────────────────
+    steps: List[str] = []
+
+    missing_texts = [_rule_text(m).lower() for m in raw_missing] if isinstance(raw_missing, list) else []
+
+    if any("stop loss" in t for t in missing_texts):
+        steps.append("Define an exact stop loss (e.g. 1.5% below entry or 1× ATR)")
+    if any("take profit" in t for t in missing_texts):
+        steps.append("Define an exact take profit target or risk-reward ratio")
+    if any("entry" in t for t in missing_texts):
+        steps.append("Specify a precise entry trigger with a measurable condition")
+    if any("position" in t for t in missing_texts):
+        steps.append("Define position sizing (e.g. 1% account risk per trade)")
+    if any("risk" in t for t in missing_texts):
+        steps.append("Clarify risk management rules")
+    if any("timeframe" in t for t in missing_texts):
+        steps.append("State which timeframe the strategy runs on")
+    if any("indicator" in t for t in missing_texts):
+        steps.append("Name the specific indicator(s) used and their settings")
+    if any("exit" in t for t in missing_texts):
+        steps.append("Define clear exit conditions")
+    if subj_count:
+        steps.append(f"Replace {subj_count} subjective term(s) with measurable conditions")
+    if verdict == "Likely Scam":
+        steps.append("Seek a strategy with independently verifiable backtest results")
+    if not steps:
+        if verdict in ("Fully Codable", "Semi-Codable"):
+            steps.append("Implement and forward-test the strategy in a paper trading account")
+            steps.append("Write unit tests for each entry and exit condition")
+        else:
+            steps.append("Find a more rule-based strategy before attempting to automate")
+
+    return {
+        "verdict": verdict,
+        "verdict_color": verdict_color,
+        "difficulty": difficulty,
+        "difficulty_color": difficulty_color,
+        "why": why,
+        "next_steps": steps,
+    }
+
+
 # Optional FastAPI layer. This is only created when FastAPI and Pydantic exist.
 if FastAPI is not None and BaseModel is not None:
     app = FastAPI(title="AI YouTube Strategy Validator")
@@ -862,18 +998,24 @@ if FastAPI is not None and BaseModel is not None:
     def home_analyze(request: Request, youtube_url: str = Form(...)):
         try:
             result = validate_strategy_core(youtube_url)
+            result_dict = result.to_dict()
+            verdict = compute_verdict(result_dict)
             return templates.TemplateResponse(
                 request=request,
                 name="index.html",
-                context={"result": result.to_dict(), "url": youtube_url},
+                context={"result": result_dict, "verdict": verdict, "url": youtube_url},
             )
         except (ValueError, StrategyValidatorError) as exc:
+            import logging
+            logging.exception("Strategy validation error")
             return templates.TemplateResponse(
                 request=request,
                 name="index.html",
                 context={"error": str(exc), "url": youtube_url},
             )
         except Exception as exc:
+            import logging
+            logging.exception("Unexpected error in home_analyze")
             return templates.TemplateResponse(
                 request=request,
                 name="index.html",

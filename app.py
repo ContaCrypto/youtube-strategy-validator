@@ -61,7 +61,6 @@ except Exception as _db_init_err:
     _db = None
 
 
-from reports import print_score_bar
 
 # Optional dependencies. The app must not crash if these are missing.
 try:

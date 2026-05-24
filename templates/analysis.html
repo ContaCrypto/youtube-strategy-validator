@@ -14,9 +14,20 @@
   nav a:hover { color: #e2e8f0; }
   nav a.active { color: #a5b4fc; border-bottom-color: #6366f1; }
 
-  .page-header { margin-bottom: 24px; }
+  .page-header { margin-bottom: 16px; }
   .page-header h1 { font-size: 1.4rem; font-weight: 700; color: #f8fafc; }
   .page-header p  { color: #64748b; font-size: 0.8rem; margin-top: 4px; word-break: break-all; }
+
+  /* Export bar */
+  .export-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .export-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+    text-decoration: none; cursor: pointer; border: 1px solid #2d3748;
+    background: #1e2433; color: #94a3b8; transition: background .15s, color .15s, border-color .15s;
+  }
+  .export-btn:hover { background: #2d3748; color: #e2e8f0; border-color: #4b5563; }
+  .export-btn.copied { background: #052010; border-color: #166534; color: #4ade80; }
 
   .card { background: #1e2433; border: 1px solid #2d3748; border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; }
   .card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #64748b; margin-bottom: 16px; }
@@ -69,6 +80,7 @@
   .tag-warn { border-color: #78350f; color: #fbbf24; background: #1c1009; }
   .tag-miss { border-color: #1e3a5f; color: #60a5fa; background: #0a1628; }
   .tag-fail { border-color: #4c1d95; color: #c4b5fd; background: #130d2a; }
+  .tag-promo { border-color: #7f1d1d; color: #fca5a5; background: #1f0a0a; }
   .warning-box { background: #1c1009; border: 1px solid #78350f; border-radius: 8px; padding: 13px 16px; color: #fbbf24; font-size: 0.875rem; line-height: 1.55; margin-top: 4px; }
   hr.divider { border: none; border-top: 1px solid #2d3748; margin: 18px 0; }
 </style>
@@ -84,6 +96,15 @@
   <div class="page-header">
     <h1>{{ rec.strategy_name or 'Unnamed Strategy' }}</h1>
     <p>{{ rec.youtube_url }} &nbsp;·&nbsp; {{ rec.created_at[:10] }}</p>
+  </div>
+
+  <div class="export-bar">
+    <a class="export-btn" href="/analysis/{{ rec.id }}/markdown" download="strategy_{{ rec.id }}.md"
+       title="Download Markdown report">⬇ Download Markdown</a>
+    <a class="export-btn" href="/analysis/{{ rec.id }}/json" download="strategy_{{ rec.id }}.json"
+       title="Download full JSON">⬇ Download JSON</a>
+    <button class="export-btn" id="copy-btn" onclick="copyReport({{ rec.id }})"
+            title="Copy Markdown to clipboard">⎘ Copy Report</button>
   </div>
 
   {# Verdict #}
@@ -147,6 +168,50 @@
       </div>
     </div>
 
+    {% set eq = rec.entry_quality_score or 0 %}
+    {% set xq = rec.exit_quality_score or 0 %}
+    {% set rq = rec.risk_quality_score or 0 %}
+    {% set af = rec.automation_feasibility_score or 0 %}
+    {% set hr = rec.hype_risk_score or 0 %}
+
+    <hr class="divider">
+
+    <div class="score-block">
+      <div class="score-row"><span>Entry Quality</span><span>{{ eq }}/100</span></div>
+      <div class="bar-track">
+        <div class="bar-fill {% if eq >= 70 %}fill-green{% elif eq >= 40 %}fill-yellow{% else %}fill-red{% endif %}"
+             style="width:{{ eq }}%"></div>
+      </div>
+    </div>
+    <div class="score-block">
+      <div class="score-row"><span>Exit Quality</span><span>{{ xq }}/100</span></div>
+      <div class="bar-track">
+        <div class="bar-fill {% if xq >= 70 %}fill-green{% elif xq >= 40 %}fill-yellow{% else %}fill-red{% endif %}"
+             style="width:{{ xq }}%"></div>
+      </div>
+    </div>
+    <div class="score-block">
+      <div class="score-row"><span>Risk Quality</span><span>{{ rq }}/100</span></div>
+      <div class="bar-track">
+        <div class="bar-fill {% if rq >= 70 %}fill-green{% elif rq >= 40 %}fill-yellow{% else %}fill-red{% endif %}"
+             style="width:{{ rq }}%"></div>
+      </div>
+    </div>
+    <div class="score-block">
+      <div class="score-row"><span>Automation Feasibility</span><span>{{ af }}/100</span></div>
+      <div class="bar-track">
+        <div class="bar-fill {% if af >= 70 %}fill-green{% elif af >= 40 %}fill-yellow{% else %}fill-red{% endif %}"
+             style="width:{{ af }}%"></div>
+      </div>
+    </div>
+    <div class="score-block">
+      <div class="score-row"><span>Hype / Scam Risk</span><span>{{ hr }}/100</span></div>
+      <div class="bar-track">
+        <div class="bar-fill {% if hr >= 60 %}fill-red{% elif hr >= 30 %}fill-yellow{% else %}fill-green{% endif %}"
+             style="width:{{ hr }}%"></div>
+      </div>
+    </div>
+
     {% if rec.warning %}
       <hr class="divider">
       <div class="section-label">Warning</div>
@@ -180,6 +245,15 @@
       </div>
     {% endif %}
 
+    {% if rec.promotional_claims %}
+      <div class="section-label">Promotional / Hype Claims</div>
+      <div class="tag-list">
+        {% for claim in rec.promotional_claims %}
+          <span class="tag tag-promo">{{ claim }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+
   </div>
 
   <div style="text-align:center; margin-top:8px;">
@@ -187,5 +261,24 @@
   </div>
 
 </div>
+<script>
+async function copyReport(id) {
+  const btn = document.getElementById('copy-btn');
+  try {
+    const r = await fetch('/analysis/' + id + '/markdown');
+    const text = await r.text();
+    await navigator.clipboard.writeText(text);
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '⎘ Copy Report';
+      btn.classList.remove('copied');
+    }, 2500);
+  } catch (e) {
+    btn.textContent = '✗ Failed';
+    setTimeout(() => { btn.textContent = '⎘ Copy Report'; }, 2000);
+  }
+}
+</script>
 </body>
 </html>

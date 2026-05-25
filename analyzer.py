@@ -9,6 +9,8 @@ from models import StrategyExtraction, StrategyRule
 from extractors import (
     _EXACT_SIGNALS,
     _SUBJECTIVE_TERMS,
+    _VISUAL_SIGNAL_ENTRY_PHRASES,
+    _VISUAL_SIGNAL_EXIT_PHRASES,
     detect_backtest_evidence,
     detect_market,
     detect_promotional_claims,
@@ -50,6 +52,8 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
 
         has_subj = any(term in sl for term in subjective_terms)
         has_exact = any(sig in sl for sig in _EXACT_SIGNALS)
+        has_visual_entry = any(phrase in sl for phrase in _VISUAL_SIGNAL_ENTRY_PHRASES)
+        has_visual_exit = any(phrase in sl for phrase in _VISUAL_SIGNAL_EXIT_PHRASES)
 
         if has_subj:
             clarity = "subjective"
@@ -58,12 +62,19 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
         else:
             clarity = "vague"
 
-        if any(w in sl for w in ["buy", "long", "enter long", "go long"]):
+        # Long entry: classic keywords + standalone "enter" verb + visual entry signals
+        if (
+            any(w in sl for w in ["buy", "long", "enter long", "go long"])
+            or re.search(r"\benter\b", sl)
+            or has_visual_entry
+        ):
             entry_rules_long.append(StrategyRule("long_entry", s, clarity))
 
+        # Short entry: classic keywords only (visual exit phrases imply exit, not always short)
         if re.search(r"\b(short|sell short|enter short|go short)\b", sl):
             entry_rules_short.append(StrategyRule("short_entry", s, clarity))
 
+        # Exit: classic keywords + visual exit signal phrases
         if any(
             w in sl
             for w in [
@@ -74,7 +85,7 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
                 "stop loss",
                 "stop out",
             ]
-        ):
+        ) or has_visual_exit:
             e_clarity = clarity
             if clarity != "subjective" and any(
                 w in sl
@@ -202,11 +213,17 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
     all_entries = entry_rules_long + entry_rules_short
     exact_entries = [r for r in all_entries if r.clarity == "exact"]
 
-    # Entry quality: timeframe/indicator bonus only awarded when entry rules exist
+    # Entry quality: timeframe/indicator bonus only awarded when entry rules exist.
+    # Purely-subjective entries score lower than vague/exact ones.
     entry_q = 0
     if all_entries:
-        entry_q += 40
-        entry_q += int(30 * len(exact_entries) / len(all_entries))
+        non_subj_entries = [r for r in all_entries if r.clarity != "subjective"]
+        if non_subj_entries:
+            entry_q += 40
+            entry_q += int(30 * len(exact_entries) / len(all_entries))
+        else:
+            # Some entry language exists but it's all subjective — not codable
+            entry_q += 15
         if timeframe:
             entry_q += 15
         if indicators:

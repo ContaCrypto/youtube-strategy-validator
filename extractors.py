@@ -67,6 +67,42 @@ _EXACT_SIGNALS: list = [
     "points",
 ]
 
+# Visual indicator signal phrases that describe mechanically actionable entry cues
+# (vague — no formula given — but not subjective)
+_VISUAL_SIGNAL_ENTRY_PHRASES: list = [
+    "turns green",
+    "goes green",
+    "green bar",
+    "green candle",
+    "green arrow",
+    "green dot",
+    "buy signal",
+    "buy arrow",
+    "buy label",
+    "signal appears",
+    "signal fires",
+    "arrow appears",
+    "changes color",
+    "changes colour",
+]
+
+# Visual indicator signal phrases that describe mechanically actionable exit cues
+_VISUAL_SIGNAL_EXIT_PHRASES: list = [
+    "turns red",
+    "goes red",
+    "red bar",
+    "red candle",
+    "red arrow",
+    "red dot",
+    "sell signal",
+    "sell arrow",
+    "sell label",
+    "opposite signal",
+    "exit signal",
+    "changes color",
+    "changes colour",
+]
+
 
 def find_indicators(text: str) -> List[str]:
     indicator_patterns = {

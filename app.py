@@ -733,6 +733,46 @@ class TestYouTubeStrategyValidator(unittest.TestCase):
         self.assertLess(result.confidence_score, 20)
         self.assertLess(result.coding_readiness_score, 15)
 
+    def test_indicator_color_signals_detected(self):
+        """'turns green / turns red' phrases should produce non-zero entry and exit scores."""
+        transcript = (
+            "On the 15m chart, enter when the indicator turns green. "
+            "Exit the trade when it turns red."
+        )
+        result = extract_rules_with_keywords(transcript)
+        self.assertGreater(result.entry_quality_score, 0)
+        self.assertGreater(result.exit_quality_score, 0)
+        self.assertGreater(result.coding_readiness_score, 0)
+        self.assertLess(result.hype_risk_score, 20)
+
+    def test_buy_sell_label_signals_detected(self):
+        """'buy label / sell label' phrases should produce non-zero entry and exit scores."""
+        transcript = "Enter when buy label appears, exit when sell label appears."
+        result = extract_rules_with_keywords(transcript)
+        self.assertGreater(result.entry_quality_score, 0)
+        self.assertGreater(result.exit_quality_score, 0)
+
+    def test_rsi_crossover_entry_exit_exact(self):
+        """RSI cross above/below thresholds should be detected as exact entry and exit rules."""
+        transcript = "Buy when RSI crosses above 30. Exit when RSI crosses below 70."
+        result = extract_rules_with_keywords(transcript)
+        self.assertIn("RSI", result.indicators)
+        self.assertGreater(result.entry_quality_score, 0)
+        self.assertGreater(result.exit_quality_score, 0)
+        self.assertEqual(result.entry_rules_long[0].clarity, "exact")
+        self.assertEqual(result.exit_rules[0].clarity, "exact")
+
+    def test_vague_signal_strategy_stays_low(self):
+        """A strategy with only subjective language and no trigger words should score low."""
+        transcript = (
+            "Wait for confirmation before considering a position. "
+            "The market structure should look clean with strong momentum."
+        )
+        result = extract_rules_with_keywords(transcript)
+        self.assertGreater(len(result.subjective_terms), 1)
+        self.assertLess(result.coding_readiness_score, 20)
+        self.assertLess(result.automation_feasibility_score, 20)
+
 
 def load_leaderboard() -> List[Dict[str, Any]]:
     """Load and rank saved strategy reports."""

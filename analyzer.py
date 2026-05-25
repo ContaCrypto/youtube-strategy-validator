@@ -198,6 +198,86 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
     if position_sizing.clarity == "missing":
         missing.append("Position sizing")
 
+    # ── Granular quality sub-scores (computed first to allow cross-capping) ─────
+    all_entries = entry_rules_long + entry_rules_short
+    exact_entries = [r for r in all_entries if r.clarity == "exact"]
+
+    # Entry quality: timeframe/indicator bonus only awarded when entry rules exist
+    entry_q = 0
+    if all_entries:
+        entry_q += 40
+        entry_q += int(30 * len(exact_entries) / len(all_entries))
+        if timeframe:
+            entry_q += 15
+        if indicators:
+            entry_q += 15
+    entry_q = min(100, entry_q)
+
+    exact_exits = [r for r in exit_rules if r.clarity == "exact"]
+    exit_q = 0
+    if exit_rules:
+        exit_q += 20
+        exit_q += int(20 * len(exact_exits) / len(exit_rules))
+    if stop_loss.clarity == "exact":
+        exit_q += 30
+    elif stop_loss.clarity == "vague":
+        exit_q += 10
+    if take_profit.clarity == "exact":
+        exit_q += 30
+    elif take_profit.clarity == "vague":
+        exit_q += 10
+    exit_q = min(100, exit_q)
+
+    risk_q = 0
+    if risk_management.clarity == "exact":
+        risk_q += 50
+    elif risk_management.clarity == "vague":
+        risk_q += 20
+    if position_sizing.clarity == "exact":
+        risk_q += 50
+    elif position_sizing.clarity == "vague":
+        risk_q += 20
+    risk_q = min(100, risk_q)
+
+    hype_risk = min(100, len(promotional_claims) * 20 + len(subjective_terms) * 5)
+
+    bt_score = 0
+    if backtest_evidence.clarity == "exact":
+        bt_score = 70
+        if re.search(r"\d+\.?\d*\s*%\s*(win rate|accuracy|profitable)", lowered):
+            bt_score = 90
+    elif re.search(r"\bbacktest", lowered):
+        bt_score = 30
+
+    # Formalization: based on clarity of formal rules + entry quality blend
+    # No bonus for bare indicators — rules must be formalizable to count
+    _clarity_val = {
+        "exact": 100,
+        "vague": 40,
+        "subjective": 10,
+        "missing": 0,
+        "unknown": 20,
+    }
+    formal_base = (
+        sum(
+            _clarity_val.get(f.clarity, 0)
+            for f in [stop_loss, take_profit, risk_management, position_sizing]
+        )
+        // 4
+    )
+    if all_entries:
+        formal_base = (formal_base + entry_q) // 2
+    formalization = max(0, min(100, formal_base - len(subjective_terms) * 3))
+
+    # Automation feasibility incorporates all four quality dimensions
+    auto_feas = max(
+        0,
+        min(
+            100,
+            int((entry_q + exit_q + risk_q + formalization) / 4) - hype_risk // 3,
+        ),
+    )
+
     # ── Coding readiness score ─────────────────────────────────────────────────
     score = 0
     if timeframe:
@@ -206,7 +286,6 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
         score += 10
     if entry_rules_long or entry_rules_short:
         score += 15
-        all_entries = entry_rules_long + entry_rules_short
         if any(r.clarity == "exact" for r in all_entries):
             score += 10
     if exit_rules:
@@ -224,6 +303,17 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
 
     score -= len(subjective_terms) * 4
     score -= len(promotional_claims) * 8
+
+    # Cap coding readiness when fundamental sub-scores are missing
+    if entry_q == 0:
+        score = min(score, 30)
+    if exit_q == 0:
+        score = min(score, 35)
+    if risk_q == 0:
+        score = min(score, 40)
+    if formalization == 0:
+        score = min(score, 25)
+
     score = max(0, min(100, score))
 
     # ── Failure reasons ────────────────────────────────────────────────────────
@@ -285,75 +375,10 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
         confidence_score += 15
     if backtest_evidence.clarity == "exact":
         confidence_score += 10
+    # Ensure a non-zero floor for strategies with any positive signal and no promo hype
+    if score > 0 and not promotional_claims:
+        confidence_score = max(5, confidence_score)
     confidence_score = max(0, min(100, confidence_score))
-
-    # ── Granular quality sub-scores ────────────────────────────────────────────
-    all_entries = entry_rules_long + entry_rules_short
-    exact_entries = [r for r in all_entries if r.clarity == "exact"]
-    entry_q = 0
-    if all_entries:
-        entry_q += 40
-        entry_q += int(30 * len(exact_entries) / len(all_entries))
-    if timeframe:
-        entry_q += 15
-    if indicators:
-        entry_q += 15
-    entry_q = min(100, entry_q)
-
-    exact_exits = [r for r in exit_rules if r.clarity == "exact"]
-    exit_q = 0
-    if exit_rules:
-        exit_q += 20
-        exit_q += int(20 * len(exact_exits) / len(exit_rules))
-    if stop_loss.clarity == "exact":
-        exit_q += 30
-    elif stop_loss.clarity == "vague":
-        exit_q += 10
-    if take_profit.clarity == "exact":
-        exit_q += 30
-    elif take_profit.clarity == "vague":
-        exit_q += 10
-    exit_q = min(100, exit_q)
-
-    risk_q = 0
-    if risk_management.clarity == "exact":
-        risk_q += 50
-    elif risk_management.clarity == "vague":
-        risk_q += 20
-    if position_sizing.clarity == "exact":
-        risk_q += 50
-    elif position_sizing.clarity == "vague":
-        risk_q += 20
-    risk_q = min(100, risk_q)
-
-    hype_risk = min(100, len(promotional_claims) * 20 + len(subjective_terms) * 5)
-
-    bt_score = 0
-    if backtest_evidence.clarity == "exact":
-        bt_score = 70
-        if re.search(r"\d+\.?\d*\s*%\s*(win rate|accuracy|profitable)", lowered):
-            bt_score = 90
-    elif re.search(r"\bbacktest", lowered):
-        bt_score = 30
-
-    auto_feas = max(0, min(100, int((entry_q + exit_q + risk_q) / 3) - hype_risk // 3))
-
-    _clarity_val = {
-        "exact": 100,
-        "vague": 40,
-        "subjective": 10,
-        "missing": 0,
-        "unknown": 20,
-    }
-    formal_base = (
-        sum(
-            _clarity_val.get(f.clarity, 0)
-            for f in [stop_loss, take_profit, risk_management, position_sizing]
-        )
-        // 4
-    )
-    formal_base = (formal_base + entry_q) // 2 if all_entries else formal_base
-    formalization = max(0, min(100, formal_base - len(subjective_terms) * 3))
 
     return StrategyExtraction(
         strategy_name=None,

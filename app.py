@@ -217,6 +217,10 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
     """Derive a verdict, automation difficulty, explanation and next steps from a result dict."""
     cr = int(result.get("coding_readiness_score", 0))
     cf = int(result.get("confidence_score", 0))
+    af = int(result.get("automation_feasibility_score", 0))
+    hr = int(result.get("hype_risk_score", 0))
+    form = int(result.get("formalization_score", 0))
+    rq = int(result.get("risk_quality_score", 0))
 
     raw_subj = result.get("subjective_terms", [])
     subj_count = len(raw_subj) if isinstance(raw_subj, list) else 0
@@ -230,17 +234,17 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
     pine_ready = bool(result.get("pine_script_ready", False))
 
     # ── Verdict ──────────────────────────────────────────────────────────────
-    if cf < 20 or (cr < 25 and failure_count >= 6):
+    if hr >= 60 or (cf < 20 and cr < 25):
         verdict = "Likely Scam"
         verdict_color = "red"
         difficulty = "Impossible"
         difficulty_color = "red"
-    elif cf < 45 or cr < 35:
+    elif cf < 45 or cr < 35 or af < 15:
         verdict = "Too Vague To Automate"
         verdict_color = "orange"
         difficulty = "Hard"
         difficulty_color = "orange"
-    elif cf >= 70 and cr >= 70 and subj_count == 0 and missing_count <= 1:
+    elif cf >= 65 and cr >= 65 and af >= 50 and form >= 40 and subj_count == 0 and missing_count <= 1:
         verdict = "Fully Codable"
         verdict_color = "green"
         difficulty = "Easy"
@@ -255,14 +259,20 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
     why_parts: List[str] = []
 
     if verdict == "Likely Scam":
-        why_parts.append(
-            "The strategy scores extremely low on both coding readiness and confidence. "
-            "It provides almost no testable rules and is likely cherry-picked or fabricated."
-        )
+        if hr >= 60:
+            why_parts.append(
+                f"The strategy has a hype/scam risk score of {hr}/100, indicating heavy "
+                "promotional language with little or no testable trading logic."
+            )
+        else:
+            why_parts.append(
+                "The strategy scores extremely low on both coding readiness and confidence. "
+                "It provides almost no testable rules and is likely cherry-picked or fabricated."
+            )
     elif verdict == "Too Vague To Automate":
         why_parts.append(
-            f"With a coding readiness of {cr}/100 and confidence of {cf}/100, "
-            "this strategy lacks the specificity needed for reliable automation."
+            f"With coding readiness {cr}/100, confidence {cf}/100, and automation "
+            f"feasibility {af}/100, this strategy lacks the specificity needed for reliable automation."
         )
         if subj_count:
             why_parts.append(
@@ -272,7 +282,7 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
             why_parts.append(f"{missing_count} key component(s) are missing entirely.")
     elif verdict == "Semi-Codable":
         why_parts.append(
-            f"The strategy scores {cr}/100 on coding readiness and {cf}/100 on confidence. "
+            f"Coding readiness {cr}/100, confidence {cf}/100, automation feasibility {af}/100. "
             "Some rules are explicit enough to automate, but important gaps remain."
         )
         if subj_count:
@@ -281,11 +291,13 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
             )
         if missing_count:
             why_parts.append(f"{missing_count} component(s) are still undefined.")
+        if rq < 40:
+            why_parts.append("Risk management rules are weak or absent.")
         if pine_ready:
             why_parts.append("A partial Pine Script implementation is feasible.")
     else:
         why_parts.append(
-            f"Coding readiness is {cr}/100 and confidence is {cf}/100. "
+            f"Coding readiness {cr}/100, confidence {cf}/100, automation feasibility {af}/100. "
             "The rules are specific, measurable, and largely free of subjective language. "
             "This strategy can realistically be backtested and automated."
         )
@@ -662,6 +674,53 @@ class TestYouTubeStrategyValidator(unittest.TestCase):
         self.assertIn("holy grail", md)
         self.assertIn("financial freedom", md)
         self.assertIn("Disclaimer", md)
+
+    def test_scoring_caps_cr_when_fundamentals_missing(self):
+        """CR must be capped low when entry, exit, risk, and formalization are all zero."""
+        transcript = "I use RSI on the 1h chart to analyse the market."
+        result = extract_rules_with_keywords(transcript)
+        self.assertEqual(result.entry_quality_score, 0)
+        self.assertEqual(result.exit_quality_score, 0)
+        self.assertEqual(result.risk_quality_score, 0)
+        self.assertLess(result.coding_readiness_score, 35)
+
+    def test_exact_rsi_strategy_consistent_scores(self):
+        """Full RSI strategy: all sub-scores non-zero and internally consistent with CR."""
+        transcript = (
+            "On the 1h chart, buy when RSI crosses above 30 and price is above the 200 EMA. "
+            "Stop loss 1.5% below entry. Take profit at 3% above entry. "
+            "Risk 1% of account per trade."
+        )
+        result = extract_rules_with_keywords(transcript)
+        self.assertGreater(result.entry_quality_score, 0)
+        self.assertGreater(result.exit_quality_score, 0)
+        self.assertGreater(result.risk_quality_score, 0)
+        self.assertGreater(result.formalization_score, 0)
+        self.assertGreaterEqual(result.coding_readiness_score, 60)
+        self.assertGreaterEqual(result.automation_feasibility_score, result.coding_readiness_score // 2)
+
+    def test_vague_moving_average_is_capped(self):
+        """Vague MA strategy with only subjective language gets capped CR and low auto_feas."""
+        transcript = (
+            "When the moving average gives a signal, wait for market structure to confirm. "
+            "Enter when momentum looks right. Exit when momentum shifts."
+        )
+        result = extract_rules_with_keywords(transcript)
+        self.assertLess(result.coding_readiness_score, 20)
+        self.assertLess(result.automation_feasibility_score, 30)
+
+    def test_promotional_strategy_hype_and_confidence(self):
+        """Promotional strategy must score high on hype risk and low on confidence."""
+        transcript = (
+            "This holy grail strategy has guaranteed profit with no risk. "
+            "Achieve financial freedom with easy money. It never loses. "
+            "Passive income and quit your job today."
+        )
+        result = extract_rules_with_keywords(transcript)
+        self.assertGreaterEqual(len(result.promotional_claims), 4)
+        self.assertGreater(result.hype_risk_score, 60)
+        self.assertLess(result.confidence_score, 20)
+        self.assertLess(result.coding_readiness_score, 15)
 
 
 def load_leaderboard() -> List[Dict[str, Any]]:

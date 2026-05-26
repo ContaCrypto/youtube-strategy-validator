@@ -237,8 +237,17 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
 
     pine_ready = bool(result.get("pine_script_ready", False))
 
-    # True when every rule-quality dimension is zero (no actionable rules at all)
-    all_rule_qualities_zero = (eq == 0 and xq == 0 and rq == 0 and form == 0)
+    # All five rule-quality dimensions are zero → no actionable implementation exists
+    all_five_zero = (eq == 0 and xq == 0 and rq == 0 and form == 0 and af == 0)
+
+    # Concept is identifiable when at least one strategy metadata field was extracted.
+    # Confidence score alone does NOT indicate codability — it reflects extraction quality.
+    has_concept = bool(
+        result.get("strategy_name")
+        or result.get("strategy_type")
+        or result.get("market")
+        or result.get("timeframe")
+    )
 
     # ── Verdict ──────────────────────────────────────────────────────────────
     if hr >= 60 or (cf < 20 and cr < 25):
@@ -247,15 +256,18 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
         difficulty = "Impossible"
         difficulty_color = "red"
 
-    elif all_rule_qualities_zero and cf >= 40:
-        # Strategy concept is identifiable but no measurable implementation rules exist
-        verdict = "Concept Clear, Rules Missing"
+    elif all_five_zero:
+        # No implementation rules at all — route on whether the concept was identified
+        if has_concept:
+            verdict = "Concept Clear, Rules Missing"
+        else:
+            verdict = "Too Vague To Automate"
         verdict_color = "orange"
         difficulty = "Hard"
         difficulty_color = "orange"
 
-    elif cf < 45 or cr < 35 or af < 15 or all_rule_qualities_zero:
-        # Scores too low, or no rule quality at all (cf < 40 case of all-zero)
+    elif cf < 45 or cr < 35 or af < 15:
+        # Scores too low to be automatable
         verdict = "Too Vague To Automate"
         verdict_color = "orange"
         difficulty = "Hard"
@@ -276,8 +288,8 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
         difficulty = "Easy"
         difficulty_color = "green"
 
-    elif eq > 0 or xq > 0:
-        # At least some actionable entry or exit quality — partial but codable
+    elif (eq > 0 or xq > 0) and af > 0:
+        # At least some actionable entry or exit quality, and non-zero automation feasibility
         verdict = "Semi-Codable"
         verdict_color = "yellow"
         difficulty = "Medium"
@@ -306,8 +318,8 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
             )
     elif verdict == "Concept Clear, Rules Missing":
         why_parts.append(
-            f"The strategy concept is identifiable (confidence {cf}/100), but the implementation "
-            "rules are missing. "
+            "The strategy concept is identifiable — the strategy name, type, market, or timeframe "
+            "were extracted — but the implementation rules are missing. "
             "Entry conditions, exit rules, and risk parameters are absent or too vague to code. "
             "This strategy cannot be reliably automated yet."
         )
@@ -868,11 +880,11 @@ class TestYouTubeStrategyValidator(unittest.TestCase):
         )
 
     def test_high_confidence_zero_rules_not_semi_codable(self):
-        """High confidence with all rule quality scores = 0 must not produce Semi-Codable."""
+        """High confidence with all five rule quality scores = 0 must not produce Semi-Codable."""
         result = {
             "coding_readiness_score": 45,
             "confidence_score": 55,
-            "automation_feasibility_score": 20,
+            "automation_feasibility_score": 0,
             "hype_risk_score": 5,
             "formalization_score": 0,
             "risk_quality_score": 0,
@@ -897,9 +909,10 @@ class TestYouTubeStrategyValidator(unittest.TestCase):
     def test_supertrend_concept_clear_rules_missing(self):
         """Super Trend style with identifiable concept but missing formula gets correct verdict."""
         result = {
+            "strategy_type": "trend_following",
             "coding_readiness_score": 40,
             "confidence_score": 50,
-            "automation_feasibility_score": 20,
+            "automation_feasibility_score": 0,
             "hype_risk_score": 5,
             "formalization_score": 0,
             "risk_quality_score": 0,

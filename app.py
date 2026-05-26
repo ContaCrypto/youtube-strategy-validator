@@ -223,6 +223,8 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
     hr = int(result.get("hype_risk_score", 0))
     form = int(result.get("formalization_score", 0))
     rq = int(result.get("risk_quality_score", 0))
+    eq = int(result.get("entry_quality_score", 0))
+    xq = int(result.get("exit_quality_score", 0))
 
     raw_subj = result.get("subjective_terms", [])
     subj_count = len(raw_subj) if isinstance(raw_subj, list) else 0
@@ -235,22 +237,37 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
 
     pine_ready = bool(result.get("pine_script_ready", False))
 
+    # True when every rule-quality dimension is zero (no actionable rules at all)
+    all_rule_qualities_zero = (eq == 0 and xq == 0 and rq == 0 and form == 0)
+
     # ── Verdict ──────────────────────────────────────────────────────────────
     if hr >= 60 or (cf < 20 and cr < 25):
         verdict = "Likely Scam"
         verdict_color = "red"
         difficulty = "Impossible"
         difficulty_color = "red"
-    elif cf < 45 or cr < 35 or af < 15:
+
+    elif all_rule_qualities_zero and cf >= 40:
+        # Strategy concept is identifiable but no measurable implementation rules exist
+        verdict = "Concept Clear, Rules Missing"
+        verdict_color = "orange"
+        difficulty = "Hard"
+        difficulty_color = "orange"
+
+    elif cf < 45 or cr < 35 or af < 15 or all_rule_qualities_zero:
+        # Scores too low, or no rule quality at all (cf < 40 case of all-zero)
         verdict = "Too Vague To Automate"
         verdict_color = "orange"
         difficulty = "Hard"
         difficulty_color = "orange"
+
     elif (
         cf >= 65
         and cr >= 65
         and af >= 50
         and form >= 40
+        and eq >= 50
+        and xq >= 50
         and subj_count == 0
         and missing_count <= 1
     ):
@@ -258,11 +275,20 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
         verdict_color = "green"
         difficulty = "Easy"
         difficulty_color = "green"
-    else:
+
+    elif eq > 0 or xq > 0:
+        # At least some actionable entry or exit quality — partial but codable
         verdict = "Semi-Codable"
         verdict_color = "yellow"
         difficulty = "Medium"
         difficulty_color = "yellow"
+
+    else:
+        # Decent high-level scores but no actionable entry/exit quality detected
+        verdict = "Too Vague To Automate"
+        verdict_color = "orange"
+        difficulty = "Hard"
+        difficulty_color = "orange"
 
     # ── Why this verdict ─────────────────────────────────────────────────────
     why_parts: List[str] = []
@@ -277,6 +303,19 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
             why_parts.append(
                 "The strategy scores extremely low on both coding readiness and confidence. "
                 "It provides almost no testable rules and is likely cherry-picked or fabricated."
+            )
+    elif verdict == "Concept Clear, Rules Missing":
+        why_parts.append(
+            f"The strategy concept is identifiable (confidence {cf}/100), but the implementation "
+            "rules are missing. "
+            "Entry conditions, exit rules, and risk parameters are absent or too vague to code. "
+            "This strategy cannot be reliably automated yet."
+        )
+        if missing_count:
+            why_parts.append(f"{missing_count} key component(s) are not defined.")
+        if subj_count:
+            why_parts.append(
+                f"{subj_count} subjective term(s) need to be replaced with measurable conditions."
             )
     elif verdict == "Too Vague To Automate":
         why_parts.append(
@@ -352,6 +391,16 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
                 "Implement and forward-test the strategy in a paper trading account"
             )
             steps.append("Write unit tests for each entry and exit condition")
+        elif verdict == "Concept Clear, Rules Missing":
+            steps.append(
+                "Specify exact entry and exit conditions with measurable triggers"
+            )
+            steps.append(
+                "Define the indicator formula and parameters (e.g. RSI(14), EMA(200))"
+            )
+            steps.append(
+                "Add a stop loss and take profit rule before attempting to code"
+            )
         else:
             steps.append(
                 "Find a more rule-based strategy before attempting to automate"
@@ -502,6 +551,7 @@ def _verdict_color(verdict: Optional[str]) -> str:
     mapping = {
         "Likely Scam": "red",
         "Too Vague To Automate": "orange",
+        "Concept Clear, Rules Missing": "orange",
         "Semi-Codable": "yellow",
         "Fully Codable": "green",
     }
@@ -815,6 +865,77 @@ class TestYouTubeStrategyValidator(unittest.TestCase):
             len(explicit.pine_script_missing),
             len(basic.pine_script_missing),
             msg="More explicit strategy should have fewer Pine Script missing requirements",
+        )
+
+    def test_high_confidence_zero_rules_not_semi_codable(self):
+        """High confidence with all rule quality scores = 0 must not produce Semi-Codable."""
+        result = {
+            "coding_readiness_score": 45,
+            "confidence_score": 55,
+            "automation_feasibility_score": 20,
+            "hype_risk_score": 5,
+            "formalization_score": 0,
+            "risk_quality_score": 0,
+            "entry_quality_score": 0,
+            "exit_quality_score": 0,
+            "subjective_terms": [],
+            "missing_information": [],
+            "failure_reasons": [],
+            "pine_script_ready": False,
+        }
+        verdict = compute_verdict(result)
+        self.assertNotEqual(
+            verdict["verdict"],
+            "Semi-Codable",
+            msg="Zero rule quality scores must not produce Semi-Codable",
+        )
+        self.assertIn(
+            verdict["verdict"],
+            ("Concept Clear, Rules Missing", "Too Vague To Automate"),
+        )
+
+    def test_supertrend_concept_clear_rules_missing(self):
+        """Super Trend style with identifiable concept but missing formula gets correct verdict."""
+        result = {
+            "coding_readiness_score": 40,
+            "confidence_score": 50,
+            "automation_feasibility_score": 20,
+            "hype_risk_score": 5,
+            "formalization_score": 0,
+            "risk_quality_score": 0,
+            "entry_quality_score": 0,
+            "exit_quality_score": 0,
+            "subjective_terms": [],
+            "missing_information": [
+                "Entry formula",
+                "Exit formula",
+                "Indicator parameters",
+            ],
+            "failure_reasons": [],
+            "pine_script_ready": False,
+        }
+        verdict = compute_verdict(result)
+        self.assertIn(
+            verdict["verdict"],
+            ("Concept Clear, Rules Missing", "Too Vague To Automate"),
+            msg="Concept-only strategy without rules should not be Semi-Codable or Fully Codable",
+        )
+        self.assertNotEqual(verdict["verdict"], "Semi-Codable")
+        self.assertNotEqual(verdict["verdict"], "Fully Codable")
+
+    def test_exact_rsi_verdict_semi_or_fully_codable(self):
+        """Explicit RSI strategy with measurable entry/exit rules should be Semi- or Fully Codable."""
+        transcript = (
+            "On the 1h chart, buy when RSI crosses above 30 and price is above the 200 EMA. "
+            "Exit when RSI crosses below 70. Stop loss 1.5% below entry. "
+            "Take profit at 3% above entry. Risk 1% of account per trade."
+        )
+        result = extract_rules_with_keywords(transcript)
+        verdict = compute_verdict(result.to_dict())
+        self.assertIn(
+            verdict["verdict"],
+            ("Semi-Codable", "Fully Codable"),
+            msg="A well-defined RSI strategy must be at least Semi-Codable",
         )
 
 

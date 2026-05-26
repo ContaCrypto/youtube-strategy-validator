@@ -93,7 +93,7 @@
           <td class="url" title="{{ r.youtube_url }}">{{ r.youtube_url }}</td>
           <td>{{ r.strategy_name or '—' }}</td>
           <td>
-            {% set vc = {'Likely Scam':'red','Too Vague To Automate':'orange','Semi-Codable':'yellow','Fully Codable':'green'} %}
+            {% set vc = {'Likely Scam':'red','Too Vague To Automate':'orange','Concept Clear, Rules Missing':'orange','Semi-Codable':'yellow','Fully Codable':'green'} %}
             <span class="verdict-pill {{ vc.get(r.verdict, 'orange') }}">{{ r.verdict or '—' }}</span>
           </td>
           <td class="score">

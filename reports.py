@@ -8,6 +8,13 @@ from typing import Any, Dict, List, Optional
 from models import StrategyExtraction, StrategyRule
 
 
+def print_score_bar(score: int) -> None:
+    filled = int(score / 10)
+    empty = 10 - filled
+    bar = "█" * filled + "░" * empty
+    print(f"[{bar}] {score}/100")
+
+
 def save_report(video_id: str, result: StrategyExtraction) -> str:
     """Save analysis result as JSON in the reports folder."""
     os.makedirs("reports", exist_ok=True)
@@ -118,7 +125,9 @@ def build_markdown_from_dict(
             if isinstance(item, dict):
                 text = item.get("rule", str(item))
                 clarity = item.get("clarity", "")
-                lines.append(f"- {text}" + (f" *(clarity: {clarity})*" if clarity else ""))
+                lines.append(
+                    f"- {text}" + (f" *(clarity: {clarity})*" if clarity else "")
+                )
             else:
                 lines.append(f"- {item}")
         return "\n".join(lines)

@@ -63,7 +63,6 @@ from extractors import (
     _EXACT_SIGNALS,
 )
 
-
 try:
     import db as _db
 
@@ -71,7 +70,6 @@ try:
 except Exception as _db_init_err:
     logging.warning("DB init failed: %s", _db_init_err)
     _db = None
-
 
 
 # Optional dependencies. The app must not crash if these are missing.
@@ -105,7 +103,12 @@ except ModuleNotFoundError:  # pragma: no cover
     NoTranscriptFound = Exception
 
 from analyzer import analyze_strategy, extract_rules_with_keywords
-from reports import save_report, generate_markdown_report, build_markdown_from_dict
+from reports import (
+    save_report,
+    generate_markdown_report,
+    build_markdown_from_dict,
+    print_score_bar,
+)
 
 
 class StrategyValidatorError(Exception):
@@ -188,7 +191,6 @@ def get_transcript(video_id: str, languages: Optional[List[str]] = None) -> str:
         raise TranscriptUnavailableError(f"Transcript extraction failed: {new_api_exc}")
 
 
-
 def validate_strategy_core(
     youtube_url: str, transcript_text: Optional[str] = None, save: bool = False
 ) -> StrategyExtraction:
@@ -244,7 +246,14 @@ def compute_verdict(result: Dict[str, Any]) -> Dict[str, Any]:
         verdict_color = "orange"
         difficulty = "Hard"
         difficulty_color = "orange"
-    elif cf >= 65 and cr >= 65 and af >= 50 and form >= 40 and subj_count == 0 and missing_count <= 1:
+    elif (
+        cf >= 65
+        and cr >= 65
+        and af >= 50
+        and form >= 40
+        and subj_count == 0
+        and missing_count <= 1
+    ):
         verdict = "Fully Codable"
         verdict_color = "green"
         difficulty = "Easy"
@@ -697,7 +706,9 @@ class TestYouTubeStrategyValidator(unittest.TestCase):
         self.assertGreater(result.risk_quality_score, 0)
         self.assertGreater(result.formalization_score, 0)
         self.assertGreaterEqual(result.coding_readiness_score, 60)
-        self.assertGreaterEqual(result.automation_feasibility_score, result.coding_readiness_score // 2)
+        self.assertGreaterEqual(
+            result.automation_feasibility_score, result.coding_readiness_score // 2
+        )
 
     def test_vague_moving_average_is_capped(self):
         """Vague MA strategy with only subjective language gets capped CR and low auto_feas."""

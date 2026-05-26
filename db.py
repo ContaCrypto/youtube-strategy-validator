@@ -36,9 +36,15 @@ def init_db() -> None:
                 subjective_terms      TEXT,
                 verdict               TEXT,
                 automation_difficulty TEXT,
-                created_at            TEXT NOT NULL
+                created_at            TEXT NOT NULL,
+                pine_script_missing   TEXT
             )
         """)
+        # Migrate existing databases that pre-date pine_script_missing
+        try:
+            conn.execute("ALTER TABLE analyses ADD COLUMN pine_script_missing TEXT")
+        except Exception:
+            pass  # Column already exists
 
 
 def _extract_text(value: Any) -> str:
@@ -63,6 +69,11 @@ def save_analysis(
     warning_raw = result.get("scam_or_cherry_pick_warning", "")
     warning_text = _extract_text(warning_raw)
 
+    pine_missing_raw = result.get("pine_script_missing", [])
+    pine_missing_json = json.dumps(
+        pine_missing_raw if isinstance(pine_missing_raw, list) else []
+    )
+
     with _connect() as conn:
         cur = conn.execute(
             """
@@ -71,8 +82,9 @@ def save_analysis(
                 market, timeframe,
                 coding_readiness_score, confidence_score, pine_script_ready,
                 warning, missing_information, failure_reasons, subjective_terms,
-                verdict, automation_difficulty, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                verdict, automation_difficulty, created_at,
+                pine_script_missing
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 youtube_url,
@@ -91,6 +103,7 @@ def save_analysis(
                 verdict.get("verdict"),
                 verdict.get("difficulty"),
                 datetime.utcnow().isoformat(timespec="seconds"),
+                pine_missing_json,
             ),
         )
         return cur.lastrowid
@@ -112,7 +125,8 @@ def get_analysis(analysis_id: int) -> Optional[Dict[str, Any]]:
     if row is None:
         return None
     rec = dict(row)
-    for field in ("missing_information", "failure_reasons", "subjective_terms"):
+    for field in ("missing_information", "failure_reasons", "subjective_terms",
+                  "pine_script_missing"):
         try:
             rec[field] = json.loads(rec[field] or "[]")
         except Exception:

@@ -77,5 +77,7 @@ class StrategyExtraction:
     backtest_evidence_score: int = 0
     formalization_score: int = 0
 
+    pine_script_missing: List[str] = field(default_factory=list)
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

@@ -26,6 +26,106 @@ except ModuleNotFoundError:
     OpenAI = None
 
 
+def _compute_pine_script_missing(
+    lowered: str,
+    has_named_indicators: bool,
+    market: Optional[str],
+    has_short_entries: bool,
+    session_filter_clarity: str,
+) -> List[str]:
+    """Return Pine Script-specific implementation gaps absent from the transcript."""
+    missing: List[str] = []
+
+    # 1. Indicator period / length
+    if has_named_indicators:
+        has_period = bool(re.search(
+            r"\b(rsi|ema|sma|macd|atr|stoch|bollinger|bb|vwap)\s*\(?\s*\d+"
+            r"|\d+\s*[-\s]?(period|length|bar|lookback)",
+            lowered,
+        ))
+        if not has_period:
+            missing.append(
+                "Indicator period/length not specified (e.g. RSI(14), EMA(200))"
+            )
+
+    # 2. Indicator source
+    if has_named_indicators:
+        has_source = bool(re.search(
+            r"\bon\s+(the\s+)?(close|open|high|low)\b"
+            r"|hl2|hlc3|ohlc4"
+            r"|\bsource\s*(=|is|price)\b"
+            r"|\bapplied\s+to\s+(close|open|high|low)\b"
+            r"|\bclose\s+price\b"
+            r"|\bbased\s+on\s+(close|open|high|low)\b",
+            lowered,
+        ))
+        if not has_source:
+            missing.append(
+                "Indicator source not specified (close, open, high, low, HL2)"
+            )
+
+    # 3. Candle close vs intrabar trigger
+    has_candle_timing = bool(re.search(
+        r"\bcandle\s*close\b"
+        r"|\bbar\s*close\b"
+        r"|\bon\s*(the\s*)?close\b"
+        r"|\bat\s*(the\s*)?close\b"
+        r"|\bintrabar\b"
+        r"|\bclose[sd]\s+(above|below|at|when)\b"
+        r"|\bconfirmed\s*close\b"
+        r"|\bwait\s+for\s*(the\s*)?close\b",
+        lowered,
+    ))
+    if not has_candle_timing:
+        missing.append("Candle close vs intrabar trigger not specified")
+
+    # 4. Market / symbol assumption
+    if not market:
+        missing.append("Market or symbol not specified (affects Pine Script defaults)")
+
+    # 5. Long-only vs both directions
+    has_explicit_direction = bool(re.search(
+        r"\blong\s*only\b"
+        r"|\blongs\s*only\b"
+        r"|\bno\s*shorts?\b"
+        r"|\bshort\s*only\b"
+        r"|\bboth\s*directions?\b"
+        r"|\btwo[-\s]?way\b",
+        lowered,
+    ))
+    if not has_short_entries and not has_explicit_direction:
+        missing.append("Long-only vs both directions not stated")
+
+    # 6. Commission and slippage
+    has_commission = bool(re.search(
+        r"\b(commission|slippage|spread|fee|cost\s*per\s*trade|transaction\s*cost)\b",
+        lowered,
+    ))
+    if not has_commission:
+        missing.append("Commission and slippage assumptions not stated")
+
+    # 7. Session / trading hours
+    if session_filter_clarity == "missing":
+        missing.append("Session/trading hours filter not specified")
+
+    # 8. Order type
+    has_order_type = bool(re.search(
+        r"market\s*orders?"
+        r"|limit\s*orders?"
+        r"|stop\s*orders?"
+        r"|market\s*execution"
+        r"|limit\s*entry"
+        r"|stop\s*entry"
+        r"|stop\s*market"
+        r"|stop\s*limit",
+        lowered,
+    ))
+    if not has_order_type:
+        missing.append("Order type not specified (market order vs limit entry)")
+
+    return missing
+
+
 def extract_rules_with_keywords(text: str) -> StrategyExtraction:
     """
     Improved heuristic fallback validator.
@@ -397,6 +497,14 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
         confidence_score = max(5, confidence_score)
     confidence_score = max(0, min(100, confidence_score))
 
+    pine_script_missing = _compute_pine_script_missing(
+        lowered=lowered,
+        has_named_indicators=bool(indicators),
+        market=market,
+        has_short_entries=bool(entry_rules_short),
+        session_filter_clarity=session_filter.clarity,
+    )
+
     return StrategyExtraction(
         strategy_name=None,
         market=market,
@@ -429,6 +537,7 @@ def extract_rules_with_keywords(text: str) -> StrategyExtraction:
         hype_risk_score=hype_risk,
         backtest_evidence_score=bt_score,
         formalization_score=formalization,
+        pine_script_missing=pine_script_missing,
     )
 
 
@@ -616,5 +725,17 @@ SCORING GUIDANCE:
 def analyze_strategy(transcript_text: str) -> StrategyExtraction:
     ai_result = analyze_strategy_with_openai(transcript_text)
     if ai_result is not None:
+        lowered = transcript_text.lower()
+        known = {"rsi", "ema", "sma", "macd", "atr", "vwap", "bollinger", "stochastic"}
+        has_indicators = bool(ai_result.indicators) or any(k in lowered for k in known)
+        ai_result.pine_script_missing = _compute_pine_script_missing(
+            lowered=lowered,
+            has_named_indicators=has_indicators,
+            market=ai_result.market,
+            has_short_entries=bool(ai_result.entry_rules_short),
+            session_filter_clarity=getattr(
+                ai_result.session_filter, "clarity", "missing"
+            ),
+        )
         return ai_result
     return extract_rules_with_keywords(transcript_text)

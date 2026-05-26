@@ -82,6 +82,12 @@ def generate_markdown_report(video_id: str, result: StrategyExtraction) -> str:
 
 ---
 
+## Pine Script Missing Requirements
+
+{bullet_list(result.pine_script_missing) if result.pine_script_missing else "- No missing Pine Script requirements detected."}
+
+---
+
 ## Failure Reasons
 
 {bullet_list(result.failure_reasons)}
@@ -214,6 +220,12 @@ def build_markdown_from_dict(
 ## Missing Information
 
 {bullet(rec.get("missing_information"))}
+
+---
+
+## Pine Script Missing Requirements
+
+{bullet(rec.get("pine_script_missing")) if rec.get("pine_script_missing") else "- No missing Pine Script requirements detected."}
 
 ---
 

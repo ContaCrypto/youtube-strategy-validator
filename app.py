@@ -773,6 +773,50 @@ class TestYouTubeStrategyValidator(unittest.TestCase):
         self.assertLess(result.coding_readiness_score, 20)
         self.assertLess(result.automation_feasibility_score, 20)
 
+    def test_pine_script_missing_rsi_no_period_or_source(self):
+        """RSI strategy without period or source should flag both gaps in pine_script_missing."""
+        transcript = (
+            "Buy when RSI crosses above 30. Exit when RSI crosses below 70. "
+            "Stop loss 1.5% below entry."
+        )
+        result = extract_rules_with_keywords(transcript)
+        self.assertIn("RSI", result.indicators)
+        missing_text = " ".join(result.pine_script_missing).lower()
+        self.assertIn("period", missing_text, msg="Period/length gap should be flagged")
+        self.assertIn("source", missing_text, msg="Indicator source gap should be flagged")
+
+    def test_pine_script_missing_candle_close_timing(self):
+        """Strategy without candle close specification should flag candle timing gap."""
+        transcript = (
+            "When RSI goes above 30, buy. When RSI goes below 70, exit. "
+            "Stop loss 2% below entry."
+        )
+        result = extract_rules_with_keywords(transcript)
+        self.assertTrue(
+            any(
+                "candle" in item.lower() or "intrabar" in item.lower()
+                for item in result.pine_script_missing
+            ),
+            msg="Candle close vs intrabar gap should be flagged",
+        )
+
+    def test_pine_script_fewer_missing_when_explicit(self):
+        """Strategy specifying RSI(14), source, candle timing, direction, order type has fewer gaps."""
+        basic = extract_rules_with_keywords(
+            "Buy when RSI crosses above 30. Exit when RSI crosses below 70."
+        )
+        explicit = extract_rules_with_keywords(
+            "On the 1h chart, buy when RSI(14) closes above 30 on the close price. "
+            "Exit when RSI(14) closes below 70. Stop loss 1.5% below entry. "
+            "Take profit at 3% above entry. Risk 1% of account. "
+            "Long only, no shorts. Market orders only."
+        )
+        self.assertLess(
+            len(explicit.pine_script_missing),
+            len(basic.pine_script_missing),
+            msg="More explicit strategy should have fewer Pine Script missing requirements",
+        )
+
 
 def load_leaderboard() -> List[Dict[str, Any]]:
     """Load and rank saved strategy reports."""

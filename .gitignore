@@ -7,3 +7,6 @@ leaderboard.csv
 
 app_backup_*.py
 app_dev_working.py
+
+strategy_validator.db
+*.db
